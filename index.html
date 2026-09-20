@@ -1,0 +1,593 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>MOVE by Andi Zhang</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ground:#0B0B0D;
+  --ground-2:#141417;
+  --rule:#2A2A30;
+  --ink:#EDEBE7;
+  --ink-dim:#78767E;
+  --accent:#E23D2C;
+  --ease:cubic-bezier(.32,.72,.26,1);
+}
+*{box-sizing:border-box}
+html{height:100%}
+body{
+  margin:0;
+  height:100dvh;
+  overflow:hidden;
+  background:var(--ground);
+  color:var(--ink);
+  font-family:"Archivo","Helvetica Neue",Helvetica,Arial,sans-serif;
+  display:grid;
+  grid-template-rows:auto auto 1fr auto;
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+
+/* ---------- chrome ---------- */
+.bar{
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  gap:24px;
+  padding:14px 22px 12px;
+  background:var(--ground-2);
+  border-bottom:1px solid var(--rule);
+}
+.brand{display:flex;align-items:baseline;gap:14px;min-width:0}
+.mark{
+  font-family:"Anton","Archivo Black","Helvetica Neue",Arial,sans-serif;
+  font-size:23px;
+  line-height:.9;
+  letter-spacing:.055em;
+  color:var(--ink);
+}
+.byline{
+  font-size:10px;
+  font-weight:500;
+  letter-spacing:.17em;
+  text-transform:uppercase;
+  color:var(--ink-dim);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.folio{
+  font-size:11px;
+  font-weight:600;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:var(--ink);
+  font-variant-numeric:tabular-nums;
+  white-space:nowrap;
+}
+
+/* ---------- scrubber ---------- */
+.scrub{position:relative;height:15px;background:var(--ground-2);border-bottom:1px solid var(--rule)}
+.track{position:absolute;inset:0 0 auto 0;height:2px;background:var(--rule)}
+.fill{position:relative;height:100%;width:0;background:var(--accent);transition:width 200ms var(--ease)}
+.fill::after{
+  content:"";position:absolute;top:-3px;left:100%;
+  width:2px;height:8px;background:var(--accent);
+  transform:translateX(-1px);
+}
+#scrub{
+  position:absolute;top:-5px;left:0;width:100%;height:15px;
+  margin:0;opacity:0;cursor:ew-resize;-webkit-appearance:none;appearance:none;background:transparent;
+}
+#scrub::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:15px}
+#scrub::-moz-range-thumb{width:22px;height:15px;border:0}
+.scrub:has(#scrub:focus-visible) .track{box-shadow:0 0 0 2px rgba(226,61,44,.55)}
+
+/* ---------- stage ---------- */
+.stage{
+  position:relative;
+  overflow:hidden;
+  display:grid;
+  place-items:center;
+  perspective:2800px;
+  perspective-origin:50% 46%;
+  touch-action:manipulation;
+  cursor:pointer;
+}
+.book{
+  position:relative;
+  transform-style:preserve-3d;
+  will-change:transform;
+  opacity:0;
+  transition:opacity 500ms ease;
+}
+.book.ready{opacity:1}
+.half{
+  position:absolute;top:0;height:100%;width:50%;
+  overflow:hidden;background:#000;
+  box-shadow:0 22px 55px -14px rgba(0,0,0,0.2), 0 0 0 1px rgba(255,255,255,.05);
+}
+.half.l{left:0}
+.half.r{left:50%}
+.half img{width:100%;height:100%;display:block;object-fit:cover}
+.hide{display:none}
+
+/* Every page carries its own gutter shadow on its own spine edge, so no single
+   shadow has to be handed back and forth as a leaf passes over the spine. */
+.half::after{
+  content:"";position:absolute;inset:0;z-index:2;pointer-events:none;
+  opacity:0;transition:opacity 520ms cubic-bezier(.42,0,.32,1);
+}
+.half.l::after{background:linear-gradient(270deg,
+  rgba(0,0,0,.20) 0,
+  rgba(0,0,0,.1125) calc(var(--gw,80px) * .25),
+  rgba(0,0,0,.05)   calc(var(--gw,80px) * .5),
+  rgba(0,0,0,.0125) calc(var(--gw,80px) * .75),
+  rgba(0,0,0,0)     var(--gw,80px))}
+.half.r::after{background:linear-gradient(90deg,
+  rgba(0,0,0,.20) 0,
+  rgba(0,0,0,.1125) calc(var(--gw,80px) * .25),
+  rgba(0,0,0,.05)   calc(var(--gw,80px) * .5),
+  rgba(0,0,0,.0125) calc(var(--gw,80px) * .75),
+  rgba(0,0,0,0)     var(--gw,80px))}
+.book.open .half::after{opacity:1}
+
+/* ---------- turning leaf ---------- */
+.leaf{
+  position:absolute;top:0;height:100%;width:50%;
+  transform-style:preserve-3d;z-index:6;will-change:transform;
+}
+.leaf.fwd{left:50%;transform-origin:left center}
+.leaf.bwd{left:0;transform-origin:right center}
+.face{position:absolute;inset:0;transform-style:preserve-3d}
+.face.back{transform:rotateY(180deg)}
+
+/* The sheet is a chain of hinged strips: each nests in the one before it and adds
+   a little rotation, so the page bows like paper instead of staying rigid. */
+.seg{position:absolute;top:0;height:100%;transform-style:preserve-3d}
+.face > .seg{width:var(--segw,10%)}
+.seg > .seg{width:100%}
+.face.gr .seg{transform-origin:left center;right:auto}
+.face.gr > .seg{left:0}
+.face.gr .seg > .seg{left:100%}
+.face.gl .seg{transform-origin:right center;left:auto}
+.face.gl > .seg{right:0}
+.face.gl .seg > .seg{right:100%}
+/* the .75px bleed on each side covers the hairline crack that otherwise shows
+   between two adjacent 3D layers; the background is pinned in px so it stays put */
+.seg > i{
+  position:absolute;top:0;bottom:0;left:-.75px;right:-.75px;pointer-events:none;
+  backface-visibility:hidden;-webkit-backface-visibility:hidden;
+}
+.slice{background-repeat:no-repeat;background-size:var(--pw) 100%}
+.dim{background:#000;opacity:0}
+
+/* ---------- edge affordances ---------- */
+.edge{
+  position:absolute;top:0;bottom:0;width:13%;min-width:56px;
+  border:0;background:transparent;padding:0;margin:0;
+  color:var(--ink);opacity:0;z-index:9;cursor:pointer;
+  display:grid;place-items:center;
+  transition:opacity 240ms var(--ease);
+}
+.edge.prev{left:0}
+.edge.next{right:0}
+.stage:hover .edge{opacity:.34}
+.stage:hover .edge:hover{opacity:1}
+.edge:focus-visible{opacity:1;outline:2px solid var(--accent);outline-offset:-8px}
+.edge[disabled]{opacity:0;pointer-events:none}
+.stage:hover .edge[disabled]{opacity:0}
+.edge svg{width:26px;height:26px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.85))}
+
+/* ---------- bottom ---------- */
+.foot{
+  display:flex;align-items:center;justify-content:space-between;gap:24px;
+  padding:11px 22px 13px;
+  background:var(--ground-2);
+  border-top:1px solid var(--rule);
+  font-size:10px;font-weight:500;letter-spacing:.15em;text-transform:uppercase;
+  color:var(--ink-dim);
+}
+.foot kbd{
+  font:inherit;color:var(--ink);
+  border:1px solid var(--rule);padding:1px 5px;margin:0 1px;
+}
+.count{color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap}
+.rotate{display:none}
+
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+
+@media (max-width:720px){
+  .byline{display:none}
+  .hint{display:none}
+  .rotate{display:inline}
+  .bar,.foot{padding-left:15px;padding-right:15px}
+  .foot{font-size:9px;letter-spacing:.12em;gap:12px}
+  .foot span{white-space:nowrap}
+  .mark{font-size:20px}
+}
+@media (prefers-reduced-motion:reduce){
+  .book,.fill,.edge,.half::after{transition-duration:1ms}
+}
+</style>
+
+<header class="bar">
+  <div class="brand">
+    <span class="mark">MOVE</span>
+    <span class="byline">Andi Zhang &middot; Thesis Book</span>
+  </div>
+  <div class="folio" id="folio">Cover</div>
+</header>
+
+<div class="scrub">
+  <div class="track"><div class="fill" id="fill"></div></div>
+  <input id="scrub" type="range" min="0" max="1" value="0" step="1" aria-label="Jump to spread">
+</div>
+
+<main class="stage" id="stage">
+  <button class="edge prev" id="prev" aria-label="Previous page" disabled>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+      <path d="M15 4 7 12l8 8"/>
+    </svg>
+  </button>
+  <button class="edge next" id="next" aria-label="Next page">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+      <path d="M9 4l8 8-8 8"/>
+    </svg>
+  </button>
+
+  <div class="book" id="book">
+    <div class="half l hide" id="halfL"><img id="imgL" alt=""></div>
+    <div class="half r" id="halfR"><img id="imgR" alt=""></div>
+    <div class="leaf hide" id="leaf">
+      <div class="face front" id="faceF"></div>
+      <div class="face back" id="faceB"></div>
+    </div>
+  </div>
+</main>
+
+<footer class="foot">
+  <span class="hint">Click the right page to turn forward &middot; the left page to go back &middot; <kbd>&larr;</kbd><kbd>&rarr;</kbd></span>
+  <span class="rotate">Tap right / left to turn</span>
+  <span class="count" id="count">Spread 1 / 1</span>
+</footer>
+
+<p class="sr" id="live" aria-live="polite"></p>
+
+<script>var PAGE_COUNT=236;</script>
+<script>
+(function(){
+  "use strict";
+
+  var N = PAGE_COUNT;                // total single pages
+  var LAST = Math.floor(N / 2);      // highest spread index
+  var spread = 0;
+  var busy = false;
+
+  var SEGS = 10;     // strips the turning sheet is bent across
+  var BEND = 21;     // total bow across the sheet, in degrees
+  var GUT  = 0.20;   // darkest point of a gutter shadow
+  var GUTW = 100;    // how far it reaches from the spine, in px
+  var gw = GUTW;     // that reach, capped so it cannot swallow a narrow page
+  var pageW = 0;     // one page, in px
+  var DIM  = 0.30;   // darkest a face gets as it turns away
+  var DUR  = 900;
+
+  var stage = document.getElementById("stage");
+  var book  = document.getElementById("book");
+  var halfL = document.getElementById("halfL"), imgL = document.getElementById("imgL");
+  var halfR = document.getElementById("halfR"), imgR = document.getElementById("imgR");
+  var leaf  = document.getElementById("leaf");
+  var faceF = document.getElementById("faceF"), faceB = document.getElementById("faceB");
+  var prevB = document.getElementById("prev"), nextB = document.getElementById("next");
+  var folio = document.getElementById("folio"), count = document.getElementById("count");
+  var fill  = document.getElementById("fill"),  scrub = document.getElementById("scrub");
+  var live  = document.getElementById("live");
+
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ----- page model: 1 = cover alone, then 2|3 ... 234|235, then 236 alone ----- */
+  function leftPage(s){  return (s >= 1 && 2*s <= N) ? 2*s : 0; }
+  function rightPage(s){ return (2*s + 1 <= N) ? 2*s + 1 : 0; }
+  function src(p){
+    return "pages/p" + ("000" + p).slice(-4) + ".avif";
+  }
+
+  /* the book slides so a lone page sits centred on screen */
+  function shiftFor(s){
+    if(!leftPage(s))  return -25;
+    if(!rightPage(s)) return  25;
+    return 0;
+  }
+
+  function label(s){
+    if(!leftPage(s))  return "Cover";
+    if(!rightPage(s)) return "Back cover";
+    var l = leftPage(s) - 2, r = rightPage(s) - 2;   // printed folio = sheet - 2
+    if(l >= 1) return "Pages " + l + "\u2013" + r;
+    if(r >= 1) return "Page " + r;
+    return "Front matter";
+  }
+
+  /* ----- build each face as a chain of hinged strips ----- */
+  function buildFace(face){
+    var parent = face, i, seg, slice, gut, dim;
+    face.segs = []; face.slices = []; face.guts = []; face.dims = [];
+    for(i = 0; i < SEGS; i++){
+      seg   = document.createElement("div"); seg.className = "seg";
+      slice = document.createElement("i");   slice.className = "slice";
+      gut   = document.createElement("i");   gut.className = "gut";
+      dim   = document.createElement("i");   dim.className = "dim";
+      seg.appendChild(slice); seg.appendChild(gut); seg.appendChild(dim);
+      parent.appendChild(seg);
+      face.segs.push(seg); face.slices.push(slice); face.guts.push(gut); face.dims.push(dim);
+      parent = seg;
+    }
+  }
+  buildFace(faceF);
+  buildFace(faceB);
+  document.documentElement.style.setProperty("--segw", (100 / SEGS) + "%");
+
+  // the gutter shadow falls off quickly away from the spine; x is px from it
+  function gutAt(x){
+    var t = 1 - x / gw;
+    return t <= 0 ? 0 : +(GUT * t * t).toFixed(4);
+  }
+
+  /* Point a face at a page. `spineLeft` says which edge of the face meets the
+     spine, which sets both the strip order and which way the gutter falls. */
+  function setFace(face, page, spineLeft){
+    face.classList.toggle("gr", spineLeft);
+    face.classList.toggle("gl", !spineLeft);
+    var url = 'url("' + src(page) + '")';
+    for(var i = 0; i < SEGS; i++){
+      var slice = spineLeft ? i : (SEGS - 1 - i);
+      face.slices[i].style.backgroundImage = url;
+      face.slices[i].style.backgroundPositionX =
+        "calc(var(--pw) * " + (-slice / SEGS).toFixed(6) + " + .75px)";
+      var sw = pageW / SEGS, stops = [];
+      for(var k = 0; k <= 4; k++){
+        stops.push("rgba(0,0,0," + gutAt((i + k / 4) * sw) + ") " + (k * 25) + "%");
+      }
+      face.guts[i].style.backgroundImage =
+        "linear-gradient(" + (spineLeft ? "90deg" : "270deg") + "," + stops.join(",") + ")";
+    }
+  }
+
+  function setHalf(half, img, page){
+    if(page){ img.src = src(page); half.classList.remove("hide"); }
+    else { half.classList.add("hide"); img.removeAttribute("src"); }
+  }
+
+  function paint(){
+    setHalf(halfL, imgL, leftPage(spread));
+    setHalf(halfR, imgR, rightPage(spread));
+    book.style.transform = "translateX(" + shiftFor(spread) + "%)";
+    book.classList.toggle("open", !!(leftPage(spread) && rightPage(spread)));
+    chrome();
+    warm(spread);
+  }
+
+  function chrome(){
+    folio.textContent = label(spread);
+    count.textContent = "Spread " + (spread + 1) + " / " + (LAST + 1);
+    fill.style.width = (LAST ? (spread / LAST) * 100 : 0) + "%";
+    if(scrub.value !== String(spread)) scrub.value = String(spread);
+    prevB.disabled = spread <= 0;
+    nextB.disabled = spread >= LAST;
+    live.textContent = label(spread);
+  }
+
+  /* ----- keep a small window of decoded pages, evict the rest ----- */
+  var cache = new Map();
+  function warm(s){
+    var want = [];
+    for(var d = -1; d <= 2; d++){
+      var k = s + d;
+      if(k < 0 || k > LAST) continue;
+      var a = leftPage(k), b = rightPage(k);
+      if(a) want.push(a);
+      if(b) want.push(b);
+    }
+    want.forEach(function(p){
+      if(cache.has(p)) return;
+      var im = new Image();
+      im.src = src(p);
+      cache.set(p, im);
+      if(im.decode) im.decode().catch(function(){});
+    });
+    cache.forEach(function(im, p){
+      if(want.indexOf(p) === -1){ im.src = ""; cache.delete(p); }
+    });
+  }
+
+  function within(ms, p){
+    return Promise.race([p, new Promise(function(r){ setTimeout(r, ms); })]);
+  }
+  function ready(list){
+    return Promise.all(list.map(function(im){
+      return im && im.decode ? im.decode().catch(function(){}) : Promise.resolve();
+    }));
+  }
+  function readyPages(list){
+    return Promise.all(list.map(function(p){
+      if(!p) return Promise.resolve();
+      var im = cache.get(p);
+      if(!im){ im = new Image(); im.src = src(p); cache.set(p, im); }
+      return im.decode ? im.decode().catch(function(){}) : Promise.resolve();
+    }));
+  }
+
+  /* ----- the turn ----- */
+  function flip(dir){
+    if(busy) return;
+    var t = spread + dir;
+    if(t < 0 || t > LAST) return;
+
+    var front = dir > 0 ? rightPage(spread) : leftPage(spread);
+    var back  = dir > 0 ? leftPage(t)       : rightPage(t);
+    if(!front){ spread = t; paint(); return; }
+
+    busy = true;
+
+    if(reduced){
+      spread = t;
+      paint();
+      book.animate([{opacity:.35},{opacity:1}], {duration:160, easing:"ease-out"});
+      busy = false;
+      return;
+    }
+
+    // underlays: what sits behind the leaf and gets revealed as it lifts
+    setHalf(halfL, imgL, dir > 0 ? leftPage(spread) : leftPage(t));
+    setHalf(halfR, imgR, dir > 0 ? rightPage(t)     : rightPage(spread));
+
+    // Bring the destination's gutter in now, while the leaf still covers the spine.
+    // Deferring this to the landing made the shadow snap on after the turn: the
+    // half revealed at settle comes back from display:none, where a transition
+    // cannot run, so it arrived at full strength in a single frame.
+    book.classList.toggle("open", !!(leftPage(t) && rightPage(t)));
+
+    // Forward, the spine is the leaf's left edge, so the front face meets it on
+    // the left and the back face -- being flipped over -- meets it on the right.
+    setFace(faceF, front, dir > 0);
+    setFace(faceB, back,  dir < 0);
+
+    leaf.className = "leaf " + (dir > 0 ? "fwd" : "bwd");
+
+    var to   = dir > 0 ? -180 : 180;
+    var turn = {duration: DUR, easing: "cubic-bezier(.42,0,.32,1)", fill: "forwards"};
+    var bend = {duration: DUR, easing: "ease-in-out", fill: "forwards"};
+
+    within(300, readyPages([front, back])).then(function(){
+      var a1 = leaf.animate(
+        [{transform:"rotateY(0deg)"},{transform:"rotateY(" + to + "deg)"}], turn);
+
+      book.animate(
+        [{transform:"translateX(" + shiftFor(spread) + "%)"},
+         {transform:"translateX(" + shiftFor(t) + "%)"}], turn);
+
+      // The sheet bows out at mid-turn and lies flat again at both ends. Each
+      // strip adds a little more than the last, so the bend gathers toward the
+      // free edge the way a real page does. The mirrored back face turns the
+      // opposite way locally in order to bend the same way in the world.
+      // Both faces take the same sign: the back face's mirrored strip chain
+      // already reverses the bend, and its rotateY(180) does not -- rotations
+      // about a shared axis commute, so negating here would bend it the wrong way.
+      var sign = dir > 0 ? 1 : -1;
+      [faceF, faceB].forEach(function(face){
+        for(var i = 0; i < SEGS; i++){
+          var d = sign * BEND * 2 * (i + 1) / (SEGS * (SEGS + 1));
+          face.segs[i].animate([
+            {transform:"rotateY(0deg)"},
+            {transform:"rotateY(" + d.toFixed(3) + "deg)"},
+            {transform:"rotateY(0deg)"}
+          ], bend);
+        }
+      });
+
+      // light leaves the face turning away and returns to the one turning toward you
+      faceF.dims.forEach(function(el){
+        el.animate([{opacity:0},{opacity:DIM * .6},{opacity:DIM}], bend);
+      });
+      faceB.dims.forEach(function(el){
+        el.animate([{opacity:DIM},{opacity:DIM * .55},{opacity:0}], bend);
+      });
+
+      var settled = false;
+      function settle(){
+        if(settled) return;
+        settled = true;
+        // the leaf still covers the half we are about to swap, so this is invisible
+        spread = t;
+        setHalf(halfL, imgL, leftPage(spread));
+        setHalf(halfR, imgR, rightPage(spread));
+        within(200, ready([imgL, imgR])).then(function(){
+          leaf.className = "leaf hide";
+          [leaf, book].concat(faceF.segs, faceB.segs, faceF.dims, faceB.dims)
+            .forEach(function(el){
+              el.getAnimations().forEach(function(a){ a.cancel(); });
+            });
+          paint();
+          busy = false;
+        });
+      }
+
+      a1.finished.then(settle, settle);
+      // a backgrounded tab can freeze the animation and never resolve `finished`;
+      // this makes sure the book always lands on the next spread rather than locking up
+      setTimeout(settle, DUR + 900);
+    });
+  }
+
+  function jump(s){
+    if(busy) return;
+    s = Math.max(0, Math.min(LAST, s));
+    if(s === spread) return;
+    spread = s;
+    paint();
+  }
+
+  /* ----- sizing: fit a 3:2 spread inside the stage ----- */
+  function size(){
+    var pad = window.innerWidth < 720 ? 10 : 34;
+    var w = stage.clientWidth  - pad * 2;
+    var h = stage.clientHeight - pad * 2;
+    var bw = Math.min(w, h * 1.5);
+    bw = Math.max(120, bw);
+    book.style.width  = bw + "px";
+    book.style.height = (bw / 1.5) + "px";
+    pageW = bw / 2;
+    gw = Math.min(GUTW, pageW * 0.22);                 // 100px, unless the page is small
+    book.style.setProperty("--pw", pageW + "px");      // one page, for the strips
+    book.style.setProperty("--gw", gw + "px");
+  }
+
+  /* ----- input ----- */
+  var downX = null, downY = null, moved = false;
+
+  stage.addEventListener("pointerdown", function(e){
+    if(e.target.closest(".edge")) return;
+    downX = e.clientX; downY = e.clientY; moved = false;
+  });
+  stage.addEventListener("pointermove", function(e){
+    if(downX === null) return;
+    if(Math.abs(e.clientX - downX) > 8 || Math.abs(e.clientY - downY) > 8) moved = true;
+  });
+  stage.addEventListener("pointerup", function(e){
+    if(e.target.closest(".edge")) return;
+    if(downX === null) return;
+    var dx = e.clientX - downX;
+    var wasDrag = moved && Math.abs(dx) > 40;
+    downX = null;
+    if(wasDrag){ flip(dx < 0 ? 1 : -1); return; }
+    if(moved) return;
+    var r = stage.getBoundingClientRect();
+    flip(e.clientX < r.left + r.width / 2 ? -1 : 1);
+  });
+  stage.addEventListener("pointercancel", function(){ downX = null; });
+
+  prevB.addEventListener("click", function(e){ e.stopPropagation(); flip(-1); });
+  nextB.addEventListener("click", function(e){ e.stopPropagation(); flip(1); });
+
+  scrub.addEventListener("input", function(){ jump(parseInt(scrub.value, 10)); });
+
+  window.addEventListener("keydown", function(e){
+    if(e.metaKey || e.ctrlKey || e.altKey) return;
+    if(e.key === "ArrowRight" || e.key === "PageDown"){ e.preventDefault(); flip(1); }
+    else if(e.key === "ArrowLeft" || e.key === "PageUp"){ e.preventDefault(); flip(-1); }
+    else if(e.key === "Home"){ e.preventDefault(); jump(0); }
+    else if(e.key === "End"){ e.preventDefault(); jump(LAST); }
+  });
+
+  window.addEventListener("resize", size);
+
+  /* ----- go ----- */
+  scrub.max = String(LAST);
+  size();
+  paint();
+  ready([imgR]).then(function(){ book.classList.add("ready"); });
+  setTimeout(function(){ book.classList.add("ready"); }, 1200);
+})();
+</script>
